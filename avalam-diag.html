@@ -36,6 +36,59 @@
 
 <script>
  
+
+function ensembleVoisins(indiceArrivee, indiceDepart){  //cette fonction retourne un vecteur avec tous les voisins des 
+							//piles indiceArrivee et indiceDepart
+							//ces voisins sont las pièces affectés par le deplacement
+
+	var v = topo[indiceArrivee].adj.slice();	//d'abord on copie en "v" les voisins de la pile avec l'indice de départ 
+	
+	for (i=v.length, j=0; j<topo[indiceDepart].adj.length; j++){	//ensuite, pour chacun des voisins de la pile avec l'indice 
+		if (v.indexOf(topo[indiceDepart].adj[j]) == -1)		//d'arrivée, on vérifie s'il est déjà dans "v", et, sinon
+			v.push(topo[indiceDepart].adj[j]);		//on l'ajoute			
+	}
+	
+	return v;	//on retourne le tableau avec l'ensemble de voisins des indices d'arrivée et de départ
+}
+
+function verifieVoisins(indice){	//cette fonction indique si la pile avec l'indice reçu est encore vivante
+					//elle vérifie s'il y a un voisin vivant qui peut la recevoir, cet-à-dire, dont 
+					//la somme est inférieure ou égale à cinq 
+
+	for(i=0; i<topo[indice].nbVoisins; i++){//ici on assure que l'on va parcourir tous les voisins de la pile avec l'indice reçu
+ 
+		aux = topo[indice].adj[i];	//on utilise un auxiliaire pour faciliter la compréhension du code
+						//l'auxiliaire c'est le même que l'indice du voisin de la pile reçue
+
+		if (topo[aux].vivant){	//on vérifie si la pile avec l'indice indiqué par "aux" est vivante, parce que s'elle est déjà 
+					//morte, on ne peut pas déplacer la pile avec l'indice reçu sur cette pille
+
+			if(position[indice].n + position[aux].n <= 5) return;	//Si la pile "aux" peut recevoir la pile 						//"indice", alors la pile "indice" est encore vivante, donc on retourne parce que,
+					//par défaut, elle déjà a l'attribut "vivante" comme "true"(dans avalam.js)
+		}
+	}
+	topo[indice].vivant = false;	//on arrive à cette partie de la fonction seulement s'il n'y a aucun voisin de la pile 
+					//"indice" capable de la recevoir. Donc on dit que la pile est désormais morte
+	return;
+}
+
+function parcoursVoisins(indiceArrivee, indiceDepart){	//cette fonction parcourt chaque voisin des piles avec l'indice de départ et 
+							//d'arrivée, vu que tous sont affectés par le déplacement, et vérifie s'il
+							//est encore vivant
+
+	var voisins = ensembleVoisins(indiceArrivee, indiceDepart);	//on crée le tableau avec les voisins des piles
+	
+	if (topo[indiceArrivee].vivant)		//on vérifie la vivacité de la pile avec l'indice d'arrivée, à travers de la fonction
+		verifieVoisins(indiceArrivee);	//verifieVoisins. On n'a pas besoin de vérifier la vivacité de la pile avec l'indice
+						//de départ, parce qu'elle est déjà vide, cet-à-dire, morte
+	
+	for (l=0; l<voisins.length; l++){	//maintenant on vérifie la vivacité de tous les voisins des indices reçus
+		verifieVoisins(voisins[l]);
+	}
+	
+	return;
+}
+
 var position = [];
 var filename="../exemples/diag_initial.js";
 var couleurs = ["aucun","jaunes","rouges"];
@@ -85,14 +138,14 @@ $(document).ready(function(){
 	// Code permettant de jouer sur le diagramme 
 		
 	$(document).on("mouseover",".jaune",function() {
-		if (position[$(this).data("indice")].n == 5) return; 
+		if (!topo[$(this).data("indice")].vivant) return;
 		if (!modeDeplacement)
 			$("img",$(this)).attr("src","jaune2.png");
 		else if (topo[indiceDepart].adj.indexOf($(this).data("indice")) != -1)
 			$("img",$(this)).attr("src","jaune2.png");
 	});
 	$(document).on("mouseover",".rouge",function() {
-		if (position[$(this).data("indice")].n == 5) return;
+		if (!topo[$(this).data("indice")].vivant) return;
 		if (!modeDeplacement)
 			$("img",$(this)).attr("src","rouge2.png");
 		else if (topo[indiceDepart].adj.indexOf($(this).data("indice")) != -1)
@@ -111,7 +164,7 @@ $(document).ready(function(){
 	$(".col").click(function(){
 		var indice = $(this).data("indice");
 		console.log("couleur:" + position[indice].col + " nombre:" + position[indice].n);
-
+		if (!topo[indice].vivant) return; // il ne sert a rien de cliquer sur une pile morte
 		if (!modeDeplacement) { // debut deplacement 
 			console.log("debut deplacement");
 			modeDeplacement = true; 
@@ -179,6 +232,10 @@ $(document).ready(function(){
 				position[indice].n = position[indiceDepart].n + position[indice].n;
 				position[indiceDepart].col = false;
 				position[indiceDepart].n = 0;
+				topo[indiceDepart].vivant = false;
+				if (position[indice].n == 5) topo[indice].vivant = false;
+				parcoursVoisins(indice, indiceDepart);	//ici on vérifie la vivacité de toutes les piles 
+									//affectées par ce déplacement
 				
 				$(".nombre",$(this)).html(position[indice].n);
 				if (position[indice].n>1) 
@@ -244,7 +301,13 @@ function traiterJson(oRep){
 
 
 		if (oRep.cols[i].nb == "0")							// tomnab 17/04
-			colrefs[i].css({display:"none"});				
+			colrefs[i].css({display:"none"});
+
+		if (oRep.cols[i].nb == "0" || oRep.cols[i].nb == "5"){		//ici on vérifie la vivacité d'une pile par rapport
+			topo[i].vivant = false;					//à sa quantité de pions
+		} else {
+			topo[i].vivant = true;
+		}				
 
 		$(".nombre",colrefs[i]).html(oRep.cols[i].nb);
 		if (oRep.cols[i].nb > 1) 
@@ -252,6 +315,10 @@ function traiterJson(oRep){
 		else 
 			$(".nombre",colrefs[i]).css({display:"none"});
 	}
+
+	for (j=0; j<48; j++){			//il faut vérifier si la pile est vivante ou morte, par rapport 
+		verifieVoisins(j);		//à ses voisins, après d'avoir défini la vivacité de toutes les piles par
+	}					//rapport a sa quantité de pions
 }
 
 
